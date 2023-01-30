@@ -12,12 +12,15 @@ import java.util.UUID;
 import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpSession;
 
+import org.json.JSONArray;
+import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.multipart.MultipartFile;
@@ -193,7 +196,7 @@ public class BoardController {
 //			@RequestParam(defaultValue = "") String keyword,
 //			@RequestParam(defaultValue = "1") int pageNum,
 //			Model model) {
-//		// ---------------------------------------------------------------------------
+		// ---------------------------------------------------------------------------
 //		// 페이징 처리를 위한 변수 선언
 //		int listLimit = 10; // 한 페이지에서 표시할 게시물 목록을 10개로 제한
 //		int startRow = (pageNum - 1) * listLimit; // 조회 시작 행번호 계산
@@ -241,26 +244,71 @@ public class BoardController {
 //	}
 	
 	// ===============================================================================
+	// 기본 목록 뷰페이지로 이동하는 서블릿 처리
+	@GetMapping("/BoardList.bo")
+	public String list() {
+		return "board/qna_board_list";
+	}
+	
 	// AJAX 요청을 통한 글목록 조회
 	// => AJAX 요청에 대한 JSON 데이터로 응답
 	// => 현재 메서드에서 JSON 타입 응답 데이터를 바로 생성하여 출력하기 위해
 	//    @ResponseBody 어노테이션 필요
 	// => 이동할 페이지가 없으므로 리턴타입 void
-	@GetMapping("/BoardList.bo")
-	public void list(
+	// => 만약, 응답 데이터의 한글이 깨질 경우 다음과 같이 매핑 데이터에 정보 추가
+	//    @GetMapping(value = "/BoardListJson.bo", produces = "application/json; charset=utf-8")
+	@ResponseBody
+	@GetMapping("/BoardListJson.bo")
+	public void listJson(
 			@RequestParam(defaultValue = "") String searchType,
 			@RequestParam(defaultValue = "") String keyword,
 			@RequestParam(defaultValue = "1") int pageNum,
 			Model model,
 			HttpServletResponse response) {
 		
+		// 페이징 처리를 위한 변수 선언
+		int listLimit = 10; // 한 페이지에서 표시할 게시물 목록을 10개로 제한
+		int startRow = (pageNum - 1) * listLimit; // 조회 시작 행번호 계산
+		// Service 객체의 getBoardList() 메서드를 호출하여 게시물 목록 조회
+		// ---------------------------------------------------------------------------
+		// => 파라미터 : 검색타입, 검색어, 시작행번호, 목록갯수   
+		// => 리턴타입 : List<BoardVO>(boardList)
+		List<BoardVO> boardList = service.getBoardList(searchType, keyword, startRow, listLimit);
+		// ---------------------------------------------------------------------------
+		// 자바 데이터를 JSON 형식으로 변환하기
+		// => org.json 패키지의 JSONObject 클래스를 활용하여 JSON 객체 1개를 생성하고
+		//    JSONArray 클래스를 활용하여 JSONObject 객체 복수개에 대한 배열 생성
+		// 0. JSONObject 객체 복수개를 저장할 JSONArray 클래스 인스턴스 생성
+		JSONArray jsonArray = new JSONArray();
+		
+		// 1. List 객체 크기만큼 반복
+		for(BoardVO board : boardList) {
+			// 2. JSONObject 클래스 인스턴스 생성
+			// => 파라미터 : VO(Bean) 객체(멤버변수 및 Getter/Setter, 기본생성자 포함)
+			JSONObject jsonObject = new JSONObject(board);
+//			System.out.println(jsonObject);
+			
+			// 참고. 저장되어 있는 JSON 데이터를 꺼낼 수도 있다! - get() 메서드 활용
+//			System.out.println(jsonObject.get("board_pass"));
+			
+			// 3. JSONArray 객체의 put() 메서드를 호출하여 JSONObject 객체 추가
+			jsonArray.put(jsonObject);
+		}
+		
+//		System.out.println(jsonArray);
+		// => JSONObject 복수개가 배열 형태로 JSONArray 객체에 저장되어 있음
+		// 또한, JSONArray 객체에서 JSONObject 객체를 꺼낼 수도 있다!
+//		JSONObject jsonObject = (JSONObject)jsonArray.get(0); // 첫번째 배열에서 꺼내기
+		// => 이 때, 리턴타입이 Object 타입이므로 JSONObject 타입 형변환 필요
+//		System.out.println(jsonObject.get("board_pass"));
+		
 		try {
-			// 응답 데이터를 직접 생성하여 웹페이지에 출력
-			// response 객체의 setCharacterEncodinf() 메서드로 출력 데이터 인코딩 지정 후
+			// 생성된 JSON 객체를 활용하여 응답 데이터를 직접 생성 후 웹페이지에 출력
+			// response 객체의 setCharacterEncoding() 메서드로 출력 데이터 인코딩 지정 후
 			// response 객체의 getWriter() 메서드로 PrintWriter 객체를 리턴받아
 			// PrintWriter 객체의 print() 메서드를 호출하여 응답데이터 출력
 			response.setCharacterEncoding("UTF-8");
-			response.getWriter().print("name:hong");
+			response.getWriter().print(jsonArray); // toString() 생략됨
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
